@@ -26,7 +26,7 @@ on:
         type: string
         required: true
 
-concurrency: ${{github.event.client_payload.event_name}}-${{github.event.client_payload.head_ref}}
+concurrency: ${{inputs.event_name}}-${{inputs.head_ref}}
 
 jobs:
   prepare:
@@ -44,19 +44,19 @@ jobs:
               --silent \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              /repos/${{github.event.client_payload.repo}}/branches/${{github.event.client_payload.head_ref}}; then
+              /repos/${{inputs.repo}}/branches/${{inputs.head_ref}}; then
               echo "head_branch_not_exists=true" >> $GITHUB_OUTPUT
               exit 1
           fi
 
       - name: Check if the review status of the PR is ready
         id: review-status-not-ready
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
-          owner="$(echo ${{github.event.client_payload.repo}} | cut -d '/' -f1)"
-          repo="$(echo ${{github.event.client_payload.repo}} | cut -d '/' -f2)"
+          owner="$(echo ${{inputs.repo}} | cut -d '/' -f1)"
+          repo="$(echo ${{inputs.repo}} | cut -d '/' -f2)"
 
-          state="$(curl -s -X POST -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/graphql -d '{ "query": "query { repository(owner:\"'"$owner"'\", name:\"'"$repo"'\") { pullRequest(number: ${{github.event.client_payload.pull_request_number}}) { reviewDecision } } }" }' | jq -Mr '.data.repository.pullRequest.reviewDecision')"
+          state="$(curl -s -X POST -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/graphql -d '{ "query": "query { repository(owner:\"'"$owner"'\", name:\"'"$repo"'\") { pullRequest(number: ${{inputs.pull_request_number}}) { reviewDecision } } }" }' | jq -Mr '.data.repository.pullRequest.reviewDecision')"
 
           if [[ "$state" != "APPROVED" ]]; then
             echo "The review status of the PR is not ready"
@@ -66,7 +66,7 @@ jobs:
 
       - name: Set check context
         run: |
-          if [[ ${{github.event.client_payload.event_name}} == 'pull_request' ]]; then
+          if [[ ${{inputs.event_name}} == 'pull_request' ]]; then
             check_context="Terragrunt Plan"
           else
             check_context="Terragrunt Apply"
@@ -80,20 +80,20 @@ jobs:
             --silent \
             --method POST \
             -H "Accept: application/vnd.github.v3+json" \
-            /repos/${{github.event.client_payload.repo}}/statuses/${{github.event.client_payload.sha}} \
+            /repos/${{inputs.repo}}/statuses/${{inputs.sha}} \
             -f state='pending' \
             -f target_url="https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}" \
             -f context="$CHECK_CONTEXT" \
             -f description='In progress'
 
-          comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (actions-comment)")) | .id' | head -n1)"
+          comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (actions-comment)")) | .id' | head -n1)"
 
           if [[ -z "$comment_id" ]]; then
             method="POST"
-            endpoint="https://api.github.com/repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments"
+            endpoint="https://api.github.com/repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments"
           else
             method="PATCH"
-            endpoint="https://api.github.com/repos/${{github.event.client_payload.repo}}/issues/comments/$comment_id"
+            endpoint="https://api.github.com/repos/${{inputs.repo}}/issues/comments/$comment_id"
           fi
 
           gh api \
@@ -109,10 +109,10 @@ jobs:
           ⌛️ [$CHECK_CONTEXT](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) is running."
 
       - name: Check if head branch name follows naming convention
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
-          if [[ ! "${{github.event.client_payload.head_ref}}" =~ ^ALBE-[0-9]+ ]]; then
-            comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (naming-comment)")) | .id' | head -n1)"
+          if [[ ! "${{inputs.head_ref}}" =~ ^ALBE-[0-9]+ ]]; then
+            comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (naming-comment)")) | .id' | head -n1)"
 
             if [[ -z "$comment_id" ]]; then
               gh api \
@@ -120,41 +120,41 @@ jobs:
                 --method POST \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                https://api.github.com/repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments \
+                https://api.github.com/repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments \
                 -f body="[//]: <> (naming-comment)
 
           # ⚠️ Warning
           
-          Branch name (\`${{github.event.client_payload.head_ref}}\`) **does not follow naming convention**. It **must** start with a Jira ticket number (e.g. \`ALBE-1234\`)."
+          Branch name (\`${{inputs.head_ref}}\`) **does not follow naming convention**. It **must** start with a Jira ticket number (e.g. \`ALBE-1234\`)."
             fi
           else
             title="$(gh api \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              /repos/${{github.event.client_payload.repo}}/pulls/${{github.event.client_payload.pull_request_number}} \
+              /repos/${{inputs.repo}}/pulls/${{inputs.pull_request_number}} \
               --jq '.title')"
             
             if [[ ! "$title" =~ ^\[ALBE-[0-9]+\] ]]; then
-              task="$(echo "${{github.event.client_payload.head_ref}}" | sed 's/^\(ALBE-[0-9]\+\).*/\1/')"
+              task="$(echo "${{inputs.head_ref}}" | sed 's/^\(ALBE-[0-9]\+\).*/\1/')"
               title="[$task] $title"
 
               gh api \
                 --method PATCH \
                 -H "Accept: application/vnd.github+json" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
-                /repos/${{github.event.client_payload.repo}}/pulls/${{github.event.client_payload.pull_request_number}} \
+                /repos/${{inputs.repo}}/pulls/${{inputs.pull_request_number}} \
                 -f title="$title"
             fi
           fi
 
       - name: Check if Plan has finished successfully
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           plan_state="$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             --jq '[.[] | select(.context == "Terragrunt Plan")] | .[0].state' \
-            /repos/${{github.event.client_payload.repo}}/commits/${{github.event.client_payload.sha}}/statuses)"
+            /repos/${{inputs.repo}}/commits/${{inputs.sha}}/statuses)"
 
           if [[ "$plan_state" != "success" ]]; then
             echo "Apply cannot be run because Plan has not finished successfully."
@@ -170,16 +170,16 @@ jobs:
         uses: actions/checkout@v3.1.0
         with:
           path: terragrunt-gitops
-          repository: ${{github.event.client_payload.repo}}
+          repository: ${{inputs.repo}}
           fetch-depth: 0
           token: ${{secrets.GH_TOKEN}}
-          ref: ${{github.event.client_payload.head_ref}}
+          ref: ${{inputs.head_ref}}
 
       - name: Collect Terragrunt changes
         id: collect-terragrunt
         run: |
-          export CHANGED_AND_MODIFIED_FILES="${{github.event.client_payload.all_changed_and_modified_files}}"
-          export OLD_NEW_RENAMED_FILES="${{github.event.client_payload.all_old_new_renamed_files}}"
+          export CHANGED_AND_MODIFIED_FILES="${{inputs.all_changed_and_modified_files}}"
+          export OLD_NEW_RENAMED_FILES="${{inputs.all_old_new_renamed_files}}"
 
           ./terragrunt-actions/_bin/actions/collect-terragrunt-changes.sh
 
@@ -197,7 +197,7 @@ jobs:
     needs: prepare
     if: |
       needs.prepare.outputs.terragrunt_workdirs != '[]'
-        && github.event.client_payload.event_name == 'pull_request'
+        && inputs.event_name == 'pull_request'
     env:
       GITHUB_TOKEN: ${{secrets.GH_TOKEN}}
 
@@ -211,10 +211,10 @@ jobs:
         uses: actions/checkout@v3.1.0
         with:
           path: terragrunt-gitops
-          repository: ${{github.event.client_payload.repo}}
+          repository: ${{inputs.repo}}
           fetch-depth: 0
           token: ${{secrets.GH_TOKEN}}
-          ref: ${{github.event.client_payload.head_ref}}
+          ref: ${{inputs.head_ref}}
 
       - name: AWS credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
@@ -236,9 +236,9 @@ jobs:
       - name: Infracost
         run: |
           export TERRAGRUNT_WORKDIRS="${{needs.prepare.outputs.terragrunt_workdirs_nofmt}}"
-          export HEAD_REF="${{github.event.client_payload.head_ref}}"
-          export REPO="${{github.event.client_payload.repo}}"
-          export PULL_REQUEST_NUMBER="${{github.event.client_payload.pull_request_number}}"
+          export HEAD_REF="${{inputs.head_ref}}"
+          export REPO="${{inputs.repo}}"
+          export PULL_REQUEST_NUMBER="${{inputs.pull_request_number}}"
 
           ./terragrunt-actions/_bin/actions/run-infracost.sh
 
@@ -262,7 +262,7 @@ jobs:
           aws-region: ${{vars.AWS_REGION}}
 
       - name: Plan Rename
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TF_STATE_BUCKET="${{vars.TF_STATE_BUCKET}}"
           export TF_LOCKS_TABLE="${{vars.TF_LOCKS_TABLE}}"
@@ -271,7 +271,7 @@ jobs:
           ./terragrunt-actions/_bin/actions/rename.sh plan-rename
 
       - name: Rename
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           export TF_STATE_BUCKET="${{vars.TF_STATE_BUCKET}}"
           export TF_LOCKS_TABLE="${{vars.TF_LOCKS_TABLE}}"
@@ -297,14 +297,14 @@ jobs:
 
     steps:
       - name: Enable branch lock
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           curl -sSL \
             -X PUT \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN"\
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{github.event.client_payload.repo}}/branches/${{github.event.client_payload.head_ref}}/protection \
+            https://api.github.com/repos/${{inputs.repo}}/branches/${{inputs.head_ref}}/protection \
             -d @- <<EOF
           {
               "required_status_checks": null,
@@ -324,9 +324,9 @@ jobs:
         uses: actions/checkout@v3.1.0
         with:
           path: terragrunt-gitops
-          repository: ${{github.event.client_payload.repo}}
+          repository: ${{inputs.repo}}
           token: ${{secrets.GH_TOKEN}}
-          ref: ${{github.event.client_payload.head_ref}}
+          ref: ${{inputs.head_ref}}
       
       - name: Setup Terragrunt
         run: ./terragrunt-actions/_bin/actions/setup-terragrunt.sh
@@ -344,7 +344,7 @@ jobs:
           ssh-private-key: ${{secrets.SSH_PRIVATE_KEY}}
 
       - name: Terragrunt Validate
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
@@ -352,14 +352,14 @@ jobs:
 
       - name: Terragrunt Plan
         id: terragrunt-plan
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
           ./terragrunt-actions/_bin/actions/run-terragrunt.sh plan
       
       - name: Terragrunt Plan Summary
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
@@ -367,7 +367,7 @@ jobs:
 
       - name: Terragrunt Apply
         id: terragrunt-apply
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
@@ -375,7 +375,7 @@ jobs:
 
       - name: Export outputs
         id: out
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         uses: cloudposse/github-action-matrix-outputs-write@0.4.1
         with:
           matrix-step-name: terragrunt
@@ -401,14 +401,14 @@ jobs:
 
     steps:
       - name: Enable branch lock
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           curl -sSL \
             -X PUT \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN"\
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${{github.event.client_payload.repo}}/branches/${{github.event.client_payload.head_ref}}/protection \
+            https://api.github.com/repos/${{inputs.repo}}/branches/${{inputs.head_ref}}/protection \
             -d @- <<EOF
           {
               "required_status_checks": null,
@@ -428,7 +428,7 @@ jobs:
         uses: actions/checkout@v3.1.0
         with:
           path: terragrunt-gitops
-          repository: ${{github.event.client_payload.repo}}
+          repository: ${{inputs.repo}}
           token: ${{secrets.GH_TOKEN}}
           ref: 'main'
       
@@ -449,21 +449,21 @@ jobs:
       
       - name: Terragrunt Plan
         id: terragrunt-plan
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
           ./terragrunt-actions/_bin/actions/run-terragrunt.sh plan-destroy
       
       - name: Terragrunt Plan Summary
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
           ./terragrunt-actions/_bin/actions/run-terragrunt.sh plan-summary
       
       - name: Terragrunt Apply
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           export TERRAGRUNT_WORKDIR="${{matrix.dir}}"
 
@@ -471,7 +471,7 @@ jobs:
 
       - name: Export outputs
         id: out
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         uses: cloudposse/github-action-matrix-outputs-write@0.4.1
         with:
           matrix-step-name: terragrunt
@@ -494,14 +494,14 @@ jobs:
     steps:
       - name: Get matrix jobs outputs
         id: read
-        if: github.event.client_payload.event_name == 'pull_request'
+        if: inputs.event_name == 'pull_request'
         uses: cloudposse/github-action-matrix-outputs-read@0.1.1
         with:
           matrix-step-name: terragrunt
 
       - name: Set check context
         run: |
-          if [[ ${{github.event.client_payload.event_name}} == 'pull_request' ]]; then
+          if [[ ${{inputs.event_name}} == 'pull_request' ]]; then
             check_context="Terragrunt Plan"
           else
             check_context="Terragrunt Apply"
@@ -515,7 +515,7 @@ jobs:
           path: terragrunt-actions
         if: |
           needs.prepare.outputs.terragrunt_tfstate_renamed_files != ''
-            && github.event.client_payload.event_name == 'pull_request'
+            && inputs.event_name == 'pull_request'
             && needs.rename.result == 'success'
 
       - name: AWS credentials
@@ -526,16 +526,16 @@ jobs:
           aws-region: ${{vars.AWS_REGION}}
         if: |
           needs.prepare.outputs.terragrunt_tfstate_renamed_files != ''
-            && github.event.client_payload.event_name == 'pull_request'
+            && inputs.event_name == 'pull_request'
             && needs.rename.result == 'success'
 
       - name: Post Plan Rename
         if: |
           needs.prepare.outputs.terragrunt_tfstate_renamed_files != ''
-            && github.event.client_payload.event_name == 'pull_request'
+            && inputs.event_name == 'pull_request'
             && needs.rename.result == 'success'
         run: |
-          export REPO="${{github.event.client_payload.repo}}"
+          export REPO="${{inputs.repo}}"
           export TF_STATE_RENAMED_FILES="${{needs.prepare.outputs.terragrunt_tfstate_renamed_files}}"
 
           ./terragrunt-actions/_bin/actions/rename.sh post-plan-rename
@@ -558,7 +558,7 @@ jobs:
 
             printf "✅ [$CHECK_CONTEXT](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) has completed successfully.\n" >> comment.md
 
-            if [[ ${{github.event.client_payload.event_name}} == 'pull_request' ]]; then
+            if [[ ${{inputs.event_name}} == 'pull_request' ]]; then
               description="Plan completed - Please, review it and approve the PR to apply the changes"
 
               if [[ -n "${{needs.prepare.outputs.terragrunt_tfstate_renamed_files}}" ]]; then
@@ -612,7 +612,7 @@ jobs:
 
               printf "\n" >> comment.md
 
-              printf "[**🧐 Review and approve changes**](https://github.com/${{github.event.client_payload.repo}}/pull/${{github.event.client_payload.pull_request_number}}/files)\n" >> comment.md
+              printf "[**🧐 Review and approve changes**](https://github.com/${{inputs.repo}}/pull/${{inputs.pull_request_number}}/files)\n" >> comment.md
             else
               description="Apply completed"
             fi
@@ -624,7 +624,7 @@ jobs:
 
             echo "❌ [$CHECK_CONTEXT](https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}) has failed." >> comment.md
 
-            if [[ ${{github.event.client_payload.event_name}} == 'pull_request' ]]; then
+            if [[ ${{inputs.event_name}} == 'pull_request' ]]; then
               description="Plan failed - Please, review the logs"
             else
               description="Apply failed - Please, review the logs"
@@ -635,20 +635,20 @@ jobs:
             --silent \
             --method POST \
             -H "Accept: application/vnd.github.v3+json" \
-            /repos/${{github.event.client_payload.repo}}/statuses/${{github.event.client_payload.sha}} \
+            /repos/${{inputs.repo}}/statuses/${{inputs.sha}} \
             -f state="$state" \
             -f target_url="https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}" \
             -f context="$CHECK_CONTEXT" \
             -f description="$description"
           
-          comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (actions-comment)")) | .id') | head -n1"
+          comments="$(gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" /repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments)" && comment_id="$(echo $comments | jq -Mr '.[] | select(.body | startswith("[//]: <> (actions-comment)")) | .id') | head -n1"
 
           if [[ -z "$comment_id" ]]; then
             method="POST"
-            endpoint="https://api.github.com/repos/${{github.event.client_payload.repo}}/issues/${{github.event.client_payload.pull_request_number}}/comments"
+            endpoint="https://api.github.com/repos/${{inputs.repo}}/issues/${{inputs.pull_request_number}}/comments"
           else
             method="PATCH"
-            endpoint="https://api.github.com/repos/${{github.event.client_payload.repo}}/issues/comments/$comment_id"
+            endpoint="https://api.github.com/repos/${{inputs.repo}}/issues/comments/$comment_id"
           fi
 
           gh api \
@@ -660,17 +660,17 @@ jobs:
             -F "body=@comment.md"
 
       - name: Disable branch lock
-        if: github.event.client_payload.event_name == 'pull_request_review'
+        if: inputs.event_name == 'pull_request_review'
         run: |
           gh api \
             --silent \
             --method DELETE \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{github.event.client_payload.repo}}/branches/${{github.event.client_payload.head_ref}}/protection || exit 0
+            /repos/${{inputs.repo}}/branches/${{inputs.head_ref}}/protection || exit 0
 
       - name: Enable auto-merge
         run: |
-          if [[ ${{steps.check-job.outputs.state}} == "success" && ${{github.event.client_payload.event_name}} == "pull_request_review" ]]; then
-            gh pr --repo ${{github.event.client_payload.repo}} merge --auto --squash ${{github.event.client_payload.pull_request_number}}
+          if [[ ${{steps.check-job.outputs.state}} == "success" && ${{inputs.event_name}} == "pull_request_review" ]]; then
+            gh pr --repo ${{inputs.repo}} merge --auto --squash ${{inputs.pull_request_number}}
           fi
