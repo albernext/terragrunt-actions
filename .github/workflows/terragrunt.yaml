@@ -8,10 +8,8 @@ on:
         required: true
       all_changed_and_modified_files:
         type: string
-        required: true
       all_old_new_renamed_files:
         type: string
-        required: true
       event_name:
         type: string
         required: true
