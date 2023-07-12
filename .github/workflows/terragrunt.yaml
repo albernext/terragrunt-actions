@@ -509,7 +509,6 @@ jobs:
 
           echo "CHECK_CONTEXT=$check_context" >> $GITHUB_ENV
 
-      - name: Set AWS credentials
       - name: Checkout terragrunt-actions repo
         uses: actions/checkout@v3.1.0
         with:
