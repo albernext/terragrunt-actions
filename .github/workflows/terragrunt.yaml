@@ -220,7 +220,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_ACCESS_SECRET_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-region: ${{vars.AWS_REGION}}
           
       - name: SSH private key
@@ -258,7 +258,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_ACCESS_SECRET_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-region: ${{vars.AWS_REGION}}
 
       - name: Plan Rename
@@ -335,7 +335,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_ACCESS_SECRET_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-region: ${{vars.AWS_REGION}}
 
       - name: SSH private key
@@ -439,7 +439,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_ACCESS_SECRET_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-region: ${{env.AWS_REGION}}
           
       - name: SSH private key
@@ -522,7 +522,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
-          aws-secret-access-key: ${{secrets.AWS_ACCESS_SECRET_KEY}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
           aws-region: ${{vars.AWS_REGION}}
         if: |
           needs.prepare.outputs.terragrunt_tfstate_renamed_files != ''
