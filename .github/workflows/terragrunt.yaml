@@ -1,6 +1,32 @@
 name: 'Terragrunt'
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        type: string
+        required: true
+      all_changed_and_modified_files:
+        type: string
+        required: true
+      all_old_new_renamed_files:
+        type: string
+        required: true
+      event_name:
+        type: string
+        required: true
+      base_ref:
+        type: string
+        required: true
+      head_ref:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      pull_request_number:
+        type: string
+        required: true
 
 concurrency: ${{github.event.client_payload.event_name}}-${{github.event.client_payload.head_ref}}
 
