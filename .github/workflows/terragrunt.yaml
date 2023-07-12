@@ -1,8 +1,6 @@
 name: 'Terragrunt'
 
-on:
-  repository_dispatch:
-    types: [terragrunt]
+on: workflow_dispatch
 
 concurrency: ${{github.event.client_payload.event_name}}-${{github.event.client_payload.head_ref}}
 
